@@ -4,7 +4,7 @@ public class LanguageBundle {
     private ResourceBundle bundle;
 
     public LanguageBundle(String language) {
-        this.bundle = ResourceBundle.getBundle("Bundle_" + language, new UTF8Control());
+        this.bundle = ResourceBundle.getBundle("languages/Bundle_" + language, new UTF8Control());
     }
 
     public String getString(String key) {

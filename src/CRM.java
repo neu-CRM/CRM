@@ -11,6 +11,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.Vector;
 
@@ -31,6 +32,8 @@ public class CRM extends JFrame {
     private ResultSet resultSet;
     private ResultSetMetaData metaData;
     private int numberOfColumns;
+    private JComboBox<Integer> eladasIdComboBox;
+    private JComboBox<String> vazComboBox;
 
     public CRM() {
         super("Database Viewer");
@@ -125,9 +128,53 @@ public class CRM extends JFrame {
         databaseViewerPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         tabbedPane.addTab("Adattábla kezelő", null, databaseViewerPanel, "View and manage database records");
+        // Ticket Panel
         JPanel ticketPanel = new JPanel(new BorderLayout());
 
-        tabbedPane.addTab("Ticketek kezelése", null, ticketPanel, "Manage tickets");
+        // Components for adding a new ticket
+        JTextField ticketMessageField = new JTextField();
+        JComboBox<String> vazComboBox = new JComboBox<>(); // Dropdown for selecting Vaz
+        JButton addTicketButton = new JButton("Add Ticket");
+
+        // Populate Vaz dropdown
+        loadVazComboBox(vazComboBox);
+
+        // Action listener for adding a new ticket
+        addTicketButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                addTicket(ticketMessageField.getText());
+            }
+        });
+
+        // Panel for adding a new ticket
+        // Panel for adding a new ticket
+        JPanel addTicketPanel = new JPanel(new FlowLayout());
+        addTicketPanel.add(new JLabel("EladasID: "));
+
+        // Create the EladasID dropdown
+        eladasIdComboBox = new JComboBox<>();
+        loadEladasIdComboBox(eladasIdComboBox);
+        addTicketPanel.add(eladasIdComboBox);
+
+        addTicketPanel.add(new JLabel("Ticket Message: "));
+        addTicketPanel.add(ticketMessageField);
+        addTicketPanel.add(addTicketButton);
+        addTicketPanel.add(new JLabel("Vaz: "));
+        addTicketPanel.add(vazComboBox);
+        addTicketPanel.add(new JLabel("Ticket Message: "));
+        addTicketPanel.add(ticketMessageField);
+        addTicketPanel.add(addTicketButton);
+
+        // Displaying existing tickets
+        loadTickets();
+
+        // Add components to the ticket panel
+        ticketPanel.add(addTicketPanel, BorderLayout.NORTH);
+        ticketPanel.add(new JScrollPane(dataTable), BorderLayout.CENTER);
+
+        // Add the Ticket Panel to the tabbed pane
+        tabbedPane.addTab("Ticket Management", null, ticketPanel, "Manage tickets");
 
         add(tabbedPane);
 
@@ -135,7 +182,94 @@ public class CRM extends JFrame {
         setSize(800, 600);
         setLocationRelativeTo(null);
         setVisible(true);
-    }   
+    }
+
+    private void loadEladasIdComboBox(JComboBox<Integer> comboBox) {
+        // Clear existing items
+        comboBox.removeAllItems();
+
+        // Use try-with-resources to ensure the PreparedStatement and ResultSet are
+        // closed
+        try (
+                PreparedStatement preparedStatement = connection.prepareStatement("SELECT EladID FROM eladas");
+                ResultSet resultSet = preparedStatement.executeQuery()) {
+
+            // Add items to the JComboBox
+            while (resultSet.next()) {
+                int eladasId = resultSet.getInt("EladID");
+                comboBox.addItem(eladasId);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace(); // Handle the exception according to your needs
+        }
+    }
+
+    private void loadVazComboBox(JComboBox<String> vazComboBox) {
+        // Clear existing items
+        vazComboBox.removeAllItems();
+
+        // Use try-with-resources to ensure the PreparedStatement and ResultSet are
+        // closed
+        try (
+                PreparedStatement preparedStatement = connection.prepareStatement("SELECT Vaz, Vnev FROM vasarlo");
+                ResultSet resultSet = preparedStatement.executeQuery()) {
+
+            // Create an ArrayList to store Vaz values and their corresponding names
+            ArrayList<String> vazList = new ArrayList<>();
+
+            // Iterate through the result set and add Vaz values and names to the list
+            while (resultSet.next()) {
+                int vaz = resultSet.getInt("Vaz");
+                String vnev = resultSet.getString("Vnev");
+                vazList.add(vaz + " - " + vnev);
+            }
+
+            // Add items to the JComboBox
+            for (String vaz : vazList) {
+                vazComboBox.addItem(vaz);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace(); // Handle the exception according to your needs
+        }
+    }
+
+    private void addTicket(String message) { // Remove the selectedVaz parameter
+        System.out.println(message);
+        int selectedEladasId = (Integer) eladasIdComboBox.getSelectedItem();
+        int selectedVaz = Integer.parseInt(((String) vazComboBox.getSelectedItem()).split("-")[0].split(" ")[0]);
+        String selectedTable = "ticket"; // Assuming the table name is "ticket"
+        try {
+            loadTableData(selectedTable);
+            // Prepare the SQL statement to insert a new ticket
+            String query = "INSERT INTO " + selectedTable
+                    + " (Vaz, Message, SubmitDate, EladasID) VALUES (?, ?, CURRENT_DATE, ?)";
+            PreparedStatement preparedStatement = connection.prepareStatement(query);
+
+            // Use a default Vaz value (you may modify this part based on your requirement)
+            preparedStatement.setInt(1, 0);
+            preparedStatement.setString(2, message);
+            preparedStatement.setInt(3, selectedEladasId);
+
+            // Execute the update
+            preparedStatement.executeUpdate();
+
+            // Reload the table data after adding the new ticket
+            loadTableData(selectedTable);
+
+            JOptionPane.showMessageDialog(this, "Ticket added successfully.");
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error adding ticket.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Method to load existing tickets
+    private void loadTickets() {
+        String selectedTable = "ticket"; // Assuming the table name is "ticket"
+        loadTableData(selectedTable);
+    }
 
     private void initializeDatabase() {
         try {
